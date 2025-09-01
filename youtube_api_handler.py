@@ -75,8 +75,8 @@ def get_live_stream_details(youtube_url: str):
         result = {
             "title": title,
             "channel_title": channel_title,
-            "start_time": start_dt_kst.strftime('%Y년 %m월 %d일 %H시 %M분 %S초 KST') if start_dt_kst else "정보 없음",
-            "end_time": end_dt_kst.strftime('%Y년 %m월 %d일 %H시 %M분 %S초 KST') if end_dt_kst else ("현재 라이브 중" if start_dt_kst else "정보 없음"),
+            "start_time": start_dt_kst.strftime('%Y년 %m월 %d일 %H시 %M분 %S초') if start_dt_kst else "정보 없음",
+            "end_time": end_dt_kst.strftime('%Y년 %m월 %d일 %H시 %M분 %S초') if end_dt_kst else ("현재 라이브 중" if start_dt_kst else "정보 없음"),
             "total_duration_formatted": (f"{int(total_duration.total_seconds()) // 3600}시간 "
                                          f"{(int(total_duration.total_seconds()) % 3600) // 60}분 "
                                          f"{int(total_duration.total_seconds()) % 60}초") if total_duration else "계산 불가"
@@ -92,4 +92,5 @@ def get_live_stream_details(youtube_url: str):
         else:
             return {"error": f"유튜브 API 호출 중 오류가 발생했습니다: {e}"}
     except Exception as e:
+
         return {"error": f"알 수 없는 오류가 발생했습니다: {e}"}

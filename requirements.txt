@@ -1,0 +1,6 @@
+# requirements.txt (내용 복사)
+Flask
+Flask-Cors
+google-api-python-client
+pytz
+gunicorn # Render에서 웹 서비스 구동 시 필요

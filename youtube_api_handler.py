@@ -1,9 +1,8 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime
 import re
 import pytz
 import googleapiclient.discovery
-import googleapiclient.errors
 
 def get_youtube_service_instance():
     api_key = os.getenv('YOUTUBE_API_KEY')
@@ -14,9 +13,6 @@ def get_youtube_service_instance():
 YOUTUBE_SERVICE = get_youtube_service_instance()
 
 def find_latest_live_video_id(channel_name: str):
-    """
-    유튜버 이름으로 검색해서 최근 라이브 VIDEO_ID를 반환
-    """
     try:
         search_request = YOUTUBE_SERVICE.search().list(
             part="snippet",
@@ -35,16 +31,11 @@ def find_latest_live_video_id(channel_name: str):
         return None
 
 def get_live_stream_details(youtube_input: str):
-    """
-    URL이든 유튜버 이름이든 받아서 VIDEO_ID 찾고 라이브 정보 반환
-    """
     video_id = None
-    # URL 패턴 검사
     match = re.search(r'(?:v=|youtu\.be/|live/)([a-zA-Z0-9_-]{11})', youtube_input)
     if match:
         video_id = match.group(1)
     else:
-        # URL이 아니면 채널 이름으로 검색
         video_id = find_latest_live_video_id(youtube_input)
 
     if not video_id:
@@ -80,6 +71,7 @@ def get_live_stream_details(youtube_input: str):
         if end_time_str:
             end_dt_utc = datetime.fromisoformat(end_time_str.replace('Z', '+00:00'))
             end_dt_kst = end_dt_utc.astimezone(korea_tz)
+
         if start_dt_kst and end_dt_kst:
             total_duration = end_dt_kst - start_dt_kst
         elif start_dt_kst and not end_dt_kst:
@@ -98,6 +90,20 @@ def get_live_stream_details(youtube_input: str):
                                          f"{int(total_duration.total_seconds()) % 60}초") if total_duration else "계산 불가"
         }
         return result
-
     except Exception as e:
         return {"error": f"유튜브 API 호출 중 오류: {e}"}
+
+def get_live_chat_id(video_id):
+    try:
+        request = YOUTUBE_SERVICE.videos().list(
+            part="liveStreamingDetails",
+            id=video_id
+        )
+        response = request.execute()
+        items = response.get('items', [])
+        if not items:
+            return None
+        return items[0]['liveStreamingDetails'].get('activeLiveChatId')
+    except Exception as e:
+        print(f"Error getting live chat ID: {e}")
+        return None

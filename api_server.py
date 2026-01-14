@@ -7,6 +7,11 @@ from youtube_api_handler import get_live_stream_details, get_live_video_id_by_ch
 app = Flask(__name__)
 CORS(app)
 
+# 🔹 루트 접속 확인용
+@app.route('/')
+def root():
+    return jsonify({"status": "ok", "message": "YouTube API 서버 정상 동작 중"})
+
 @app.route('/get_youtube_time', methods=['POST'])
 def get_youtube_time_api():
     data = request.get_json()
@@ -20,9 +25,6 @@ def get_youtube_time_api():
 
 @app.route('/get_live_video_id', methods=['POST'])
 def get_live_video_id_api():
-    """
-    HTML에서 channelId를 보내면 live videoId 반환
-    """
     data = request.get_json()
     channel_id = data.get('channelId')
     if not channel_id:

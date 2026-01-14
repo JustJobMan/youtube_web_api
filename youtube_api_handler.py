@@ -1,5 +1,4 @@
-# youtube_api_handler.py (내용 복사)
-
+# youtube_api_handler.py
 import os
 from datetime import datetime, timedelta
 import re
@@ -8,7 +7,6 @@ import googleapiclient.discovery
 import googleapiclient.errors
 
 def get_youtube_service_instance():
-    """유튜브 API 서비스 인스턴스를 반환합니다."""
     api_key = os.getenv('YOUTUBE_API_KEY')
     if not api_key:
         raise ValueError("YOUTUBE_API_KEY 환경 변수가 설정되지 않았습니다.")
@@ -16,15 +14,12 @@ def get_youtube_service_instance():
 
 YOUTUBE_SERVICE = get_youtube_service_instance()
 
+# 방송 시간 가져오기
 def get_live_stream_details(youtube_url: str):
-    """
-    유튜브 라이브 링크에서 방송 시작/종료 시간 및 총 방송 시간을 가져와 딕셔너리로 반환합니다.
-    """
     video_id = None
-    match = re.search(r'(?:v=|youtu\.be/|live/)([a-zA-Z0-9_-]{11})(?:\?|&|$)', youtube_url)
+    match = re.search(r'(?:v=|youtu\.be/|live/)([a-zA-Z0-9_-]{11})', youtube_url)
     if match:
         video_id = match.group(1)
-
     if not video_id:
         return {"error": "유효한 유튜브 링크 주소를 찾을 수 없습니다."}
 
@@ -60,14 +55,12 @@ def get_live_stream_details(youtube_url: str):
         if start_time_str:
             start_dt_utc = datetime.fromisoformat(start_time_str.replace('Z', '+00:00'))
             start_dt_kst = start_dt_utc.astimezone(korea_tz)
-
         if end_time_str:
             end_dt_utc = datetime.fromisoformat(end_time_str.replace('Z', '+00:00'))
             end_dt_kst = end_dt_utc.astimezone(korea_tz)
-
         if start_dt_kst and end_dt_kst:
             total_duration = end_dt_kst - start_dt_kst
-        elif start_dt_kst and not end_dt_kst:
+        elif start_dt_kst:
             current_dt_utc = datetime.now(pytz.utc)
             current_dt_kst = current_dt_utc.astimezone(korea_tz)
             total_duration = current_dt_kst - start_dt_kst
@@ -75,22 +68,45 @@ def get_live_stream_details(youtube_url: str):
         result = {
             "title": title,
             "channel_title": channel_title,
-            "start_time": start_dt_kst.strftime('%Y년 %m월 %d일 %H시 %M분 %S초') if start_dt_kst else "정보 없음",
-            "end_time": end_dt_kst.strftime('%Y년 %m월 %d일 %H시 %M분 %S초') if end_dt_kst else ("현재 라이브 중" if start_dt_kst else "정보 없음"),
-            "total_duration_formatted": (f"{int(total_duration.total_seconds()) // 3600}시간 "
-                                         f"{(int(total_duration.total_seconds()) % 3600) // 60}분 "
-                                         f"{int(total_duration.total_seconds()) % 60}초") if total_duration else "계산 불가"
+            "start_time": start_dt_kst.strftime('%Y-%m-%d %H:%M:%S') if start_dt_kst else "정보 없음",
+            "end_time": end_dt_kst.strftime('%Y-%m-%d %H:%M:%S') if end_dt_kst else ("현재 라이브 중" if start_dt_kst else "정보 없음"),
+            "total_duration_formatted": f"{int(total_duration.total_seconds()) // 3600}시간 " +
+                                        f"{(int(total_duration.total_seconds()) % 3600) // 60}분 " +
+                                        f"{int(total_duration.total_seconds()) % 60}초" if total_duration else "계산 불가"
         }
         return result
 
     except googleapiclient.errors.HttpError as e:
-        status_code = e.resp.status
-        if status_code == 403:
-            return {"error": "유튜브 API 할당량 초과 또는 API 키에 문제가 있습니다. 잠시 후 다시 시도하거나 API 키를 확인해주세요."}
-        elif status_code == 400:
-            return {"error": "유튜브 API 요청이 잘못되었습니다. 비디오 ID가 유효한지 확인해주세요."}
-        else:
-            return {"error": f"유튜브 API 호출 중 오류가 발생했습니다: {e}"}
+        return {"error": f"유튜브 API 오류: {e}"}
     except Exception as e:
+        return {"error": f"알 수 없는 오류: {e}"}
 
-        return {"error": f"알 수 없는 오류가 발생했습니다: {e}"}
+# --- 실시간 채팅 관련 ---
+def get_live_chat_id(video_id):
+    request = YOUTUBE_SERVICE.videos().list(
+        part="liveStreamingDetails",
+        id=video_id
+    )
+    response = request.execute()
+    items = response.get('items')
+    if not items:
+        return None
+    live_details = items[0].get('liveStreamingDetails', {})
+    return live_details.get('activeLiveChatId')
+
+def get_live_chat_messages(live_chat_id, page_token=None):
+    request = YOUTUBE_SERVICE.liveChatMessages().list(
+        liveChatId=live_chat_id,
+        part="snippet,authorDetails",
+        maxResults=200,
+        pageToken=page_token
+    )
+    response = request.execute()
+    messages = []
+    for item in response.get('items', []):
+        msg = item['snippet']['displayMessage']
+        author = item['authorDetails']['displayName']
+        messages.append(f"{author}: {msg}")
+    next_page_token = response.get('nextPageToken')
+    polling_interval = response.get('pollingIntervalMillis', 5000) / 1000
+    return messages, next_page_token, polling_interval

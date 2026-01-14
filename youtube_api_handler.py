@@ -4,46 +4,10 @@ import re
 
 YOUTUBE_API_KEY = "YOUR_YOUTUBE_API_KEY"  # 실제 키로 교체
 
-def get_video_id_from_handle(url_or_handle):
+def get_video_id_from_channel(channel_id):
     """
-    핸들(@핸들/live) 또는 유튜브 링크를 받아서 videoId 반환.
-    라이브 중인 영상만 반환.
+    채널ID 기반으로 라이브 중인 videoId 반환.
     """
-    # 1️⃣ 핸들 URL이면 채널ID 가져오기
-    match = re.search(r'youtube\.com/@([a-zA-Z0-9_-]+)/?live', url_or_handle)
-    if match:
-        handle = match.group(1)
-        # 채널ID 조회
-        channel_res = requests.get(
-            "https://www.googleapis.com/youtube/v3/channels",
-            params={
-                "part": "id",
-                "forUsername": handle,   # 일반 @핸들용
-                "key": YOUTUBE_API_KEY
-            }
-        ).json()
-        if "items" in channel_res and len(channel_res["items"]) > 0:
-            channel_id = channel_res["items"][0]["id"]
-        else:
-            # @핸들 방식 실패 시, search API 사용
-            search_res = requests.get(
-                "https://www.googleapis.com/youtube/v3/search",
-                params={
-                    "part": "snippet",
-                    "q": handle,
-                    "type": "channel",
-                    "key": YOUTUBE_API_KEY
-                }
-            ).json()
-            if "items" in search_res and len(search_res["items"]) > 0:
-                channel_id = search_res["items"][0]["id"]["channelId"]
-            else:
-                return None
-    else:
-        # 일반 유튜브 링크
-        channel_id = None
-
-    # 2️⃣ 채널ID 기반으로 라이브 비디오 검색
     params = {
         "part": "id",
         "channelId": channel_id,
@@ -60,11 +24,16 @@ def get_live_stream_details(youtube_url):
     """
     기존 get_youtube_time에서 호출
     """
-    video_id = get_video_id_from_handle(youtube_url)
+    video_id = None
+    # 링크 기반 videoId 조회
+    match = re.search(r'(?:v=|youtu\.be/)([a-zA-Z0-9_-]{11})', youtube_url)
+    if match:
+        video_id = match.group(1)
     if not video_id:
+        # @핸들/live 같은 경우 처리는 서버에서 채널ID 기반
         return {"error": "유효한 유튜브 링크 또는 라이브를 찾을 수 없습니다."}
 
-    # 방송 시간 조회 (예시)
+    # 방송 시간 조회
     video_res = requests.get(
         "https://www.googleapis.com/youtube/v3/videos",
         params={
